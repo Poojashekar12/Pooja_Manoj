@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A sky for you</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,500&family=Karla:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--night:#0b1030;--deep:#141a45;--star:#f4d58d;--rose:#ee7a95;--mist:#b4bde6;--ink:#f5f1e6;
+--serif:'Fraunces',Georgia,serif;--sans:'Karla',system-ui,sans-serif;color-scheme:dark;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(120% 90% at 50% 30%,var(--deep),var(--night) 70%);color:var(--ink);font-family:var(--sans);overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+.stage{position:fixed;left:0;right:0;bottom:0;padding:0 24px calc(40px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;text-align:center;min-height:42%;justify-content:flex-end}
+.line{font-family:var(--serif);font-style:italic;font-weight:300;font-size:clamp(1.55rem,5.2vw,2.5rem);line-height:1.3;max-width:20em;margin:0 0 28px;transition:opacity .6s,transform .6s}
+.line.out{opacity:0;transform:translateY(8px)}
+.line.big{font-weight:500;font-size:clamp(2.1rem,8vw,3.8rem);color:var(--star)}
+.small{font-family:var(--sans);font-style:normal;font-size:1rem;color:var(--mist);margin:-12px 0 24px}
+.row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;min-height:52px}
+button{font:500 1.05rem var(--sans);cursor:pointer;border-radius:999px;padding:14px 30px;border:1.5px solid var(--star);background:transparent;color:var(--star);transition:background .25s,color .25s,transform .2s}
+button:hover{background:var(--star);color:var(--night)}
+button:focus-visible{outline:3px solid var(--mist);outline-offset:3px}
+button.yes{background:var(--rose);border-color:var(--rose);color:#fff;font-size:1.2rem;padding:16px 44px}
+button.yes:hover{transform:scale(1.06);background:var(--rose);color:#fff}
+button.no{border-color:var(--mist);color:var(--mist)}
+button.dodge{position:fixed;z-index:5;transition:left .25s,top .25s}
+.hidden{display:none}
+@media (prefers-reduced-motion:reduce){.line,button{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="c" aria-hidden="true"></canvas>
+<main class="stage" id="stage">
+  <p class="line" id="line" aria-live="polite"></p>
+  <div class="row" id="row"></div>
+</main>
+<script>
+/* ===== Make it yours: edit this block ===== */
+const C = {
+  her: "My love",
+  me: "Yours, always",
+  intro: "I wrote you a letter in the stars.",
+  begin: "Open it",
+  next: "Keep going",
+  chapters: [
+    "Out of everyone on this earth, I somehow found you.",
+    "You turned ordinary days into the ones I replay.",
+    "With you, home stopped being a place and became a person.",
+    "I want every sunrise, every wrong turn, every quiet Sunday with you.",
+    "So I built us a sky. It’s missing just one star."
+  ],
+  question: "Will you marry me?",
+  yes: "Yes",
+  no: "No",
+  noteAfterDodges: "Okay, that one only goes one way.",
+  celebrate: "You just made me the happiest person under every sky.",
+  celebrateSmall: "Now come here. I have a ring to put on you."
+};
+/* ========================================== */
+
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const line = document.getElementById('line'), row = document.getElementById('row');
+let W, H, DPR, bg = [], pts = [], segs = [], shown = 0, target = 0, glow = 0, parts = [], celebrating = false;
+const reduce = matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+function layout() {
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  bg = Array.from({length: Math.round(W * H / 6500)}, () => ({x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.3 + .3, p: Math.random() * 6.28, s: Math.random() * 1.5 + .5}));
+  const cx = W / 2, cy = H * .4, r = Math.min(W * .3, H * .17), g = r * .34;
+  pts = [];
+  for (let i = 0; i < 12; i++) { const a = -Math.PI / 2 + i * Math.PI / 6; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+  pts.push([cx - g, cy - r - g], [cx, cy - r - 2 * g], [cx + g, cy - r - g]);
+  segs = [];
+  for (let i = 0; i < 12; i++) segs.push([i, (i + 1) % 12]);
+  segs.push([0, 12], [12, 13], [13, 14], [14, 0]);
+}
+addEventListener('resize', layout); layout();
+
+function frame(t) {
+  ctx.clearRect(0, 0, W, H);
+  for (const s of bg) {
+    ctx.globalAlpha = .35 + .65 * Math.abs(Math.sin(t / 1000 * s.s + s.p));
+    ctx.fillStyle = '#dfe5ff'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.28); ctx.fill();
+  }
+  shown += (target - shown) * (reduce ? 1 : .035);
+  glow += ((celebrating || target >= 16 ? 1 : 0) - glow) * .03;
+  ctx.globalAlpha = .9; ctx.strokeStyle = '#f4d58d'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+  const full = Math.floor(shown + .001), part = shown - full;
+  for (let i = 0; i < segs.length; i++) {
+    if (i > full) break;
+    const [a, b] = segs[i], f = i < full ? 1 : part; if (f <= .01) continue;
+    ctx.beginPath(); ctx.moveTo(...pts[a]);
+    ctx.lineTo(pts[a][0] + (pts[b][0] - pts[a][0]) * f, pts[a][1] + (pts[b][1] - pts[a][1]) * f); ctx.stroke();
+  }
+  const lit = i => i <= 11 ? shown >= i - .3 : shown >= 12 + (i - 12) + .3 - 0.3 + (i === 14 ? 1 : 0) - 0.0;
+  pts.forEach((p, i) => {
+    const on = shown >= i;
+    if (!on) return;
+    const pulse = 1 + .25 * Math.sin(t / 500 + i);
+    const gr = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], 16 * pulse);
+    gr.addColorStop(0, 'rgba(244,213,141,.95)'); gr.addColorStop(1, 'rgba(244,213,141,0)');
+    ctx.globalAlpha = 1; ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(p[0], p[1], 16 * pulse, 0, 6.28); ctx.fill();
+    ctx.fillStyle = '#fff8e0'; ctx.beginPath(); ctx.arc(p[0], p[1], 2.4, 0, 6.28); ctx.fill();
+  });
+  if (glow > .02) { // the final star: the diamond
+    const p = pts[13], gr = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], 90 * glow);
+    gr.addColorStop(0, 'rgba(238,122,149,.55)'); gr.addColorStop(1, 'rgba(238,122,149,0)');
+    ctx.globalAlpha = glow; ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(p[0], p[1], 90 * glow, 0, 6.28); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  parts = parts.filter(q => q.l > 0);
+  for (const q of parts) {
+    q.x += q.vx; q.y += q.vy; q.vy += .06; q.l--; q.a += q.va;
+    ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.a); ctx.globalAlpha = Math.min(1, q.l / 40);
+    ctx.fillStyle = q.c; ctx.font = q.s + 'px serif'; ctx.textAlign = 'center'; ctx.fillText(q.h, 0, 0); ctx.restore();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+function burst() {
+  const hs = ['♥', '♥', '✦', '♥'], cs = ['#ee7a95', '#f4d58d', '#ffd3dd', '#fff8e0'];
+  for (let i = 0; i < 160; i++) {
+    const a = Math.random() * 6.28, v = 3 + Math.random() * 8;
+    parts.push({x: W / 2, y: H * .45, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 4, l: 120 + Math.random() * 100, a: 0, va: (Math.random() - .5) * .2, s: 14 + Math.random() * 26, h: hs[i % 4], c: cs[i % 4]});
+  }
+}
+
+let step = -1, dodges = 0;
+function say(text, cls, small) {
+  line.classList.add('out');
+  setTimeout(() => {
+    line.className = 'line ' + (cls || ''); line.innerHTML = '';
+    line.append(document.createTextNode(text));
+    if (small) { const s = document.createElement('span'); s.className = 'small'; s.style.display = 'block'; s.style.marginTop = '18px'; s.textContent = small; line.append(s); }
+  }, reduce ? 0 : 450);
+}
+function btn(label, cls, fn) { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; return b; }
+function dodge(b) {
+  dodges++;
+  b.classList.add('dodge');
+  const bw = b.offsetWidth, bh = b.offsetHeight;
+  b.style.left = Math.max(12, Math.random() * (W - bw - 24)) + 'px';
+  b.style.top = Math.max(12, Math.random() * (H - bh - 24)) + 'px';
+  if (dodges === 5) say(C.question, 'big', C.noteAfterDodges);
+}
+function render() {
+  row.innerHTML = '';
+  if (step === -1) {
+    say(C.her + ',', '', C.intro);
+    row.append(btn(C.begin, '', () => { step = 0; render(); }));
+  } else if (step < C.chapters.length) {
+    target = [2, 5, 8, 11, 12][step];
+    say(C.chapters[step]);
+    row.append(btn(C.next, '', () => { step++; render(); }));
+  } else if (step === C.chapters.length) {
+    target = 16;
+    say(C.question, 'big');
+    const no = btn(C.no, 'no', () => dodge(no));
+    no.addEventListener('pointerenter', () => dodge(no));
+    row.append(btn(C.yes, 'yes', () => { step++; render(); }), no);
+  } else {
+    celebrating = true; burst(); setTimeout(burst, 700); setTimeout(burst, 1500);
+    document.querySelectorAll('.dodge').forEach(e => e.remove());
+    say(C.celebrate, 'big', C.celebrateSmall);
+    row.append(btn('♥', '', burst));
+    const sig = document.createElement('p'); sig.className = 'small'; sig.textContent = C.me; sig.style.width = '100%'; sig.style.margin = '16px 0 0';
+    row.append(sig);
+  }
+  row.querySelector('button')?.focus({preventScroll: true});
+}
+render();
+</script>
+</body>
+</html>
